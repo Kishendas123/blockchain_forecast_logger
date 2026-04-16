@@ -29,6 +29,15 @@ contract ForecastLogger {
         _;
     }
 
+    // Function to transfer transferOwnership
+    // only onlyOwner can call this
+    function transferOwnership(address newOwner) public onlyOwner {
+        require(newOwner != address(0), "Invalid address");
+        // Updates the owner
+        owner = newOwner;
+    }
+
+
     // Prediction Struct stores one prediction record
     struct Prediction {
         string modelName;
@@ -113,7 +122,7 @@ contract ForecastLogger {
                 p.submittedBy
             );
         }  
-        
+
 
     // read out the latest Prediction
     function getLatestPrediction() public view
