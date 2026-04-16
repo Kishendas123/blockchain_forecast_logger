@@ -13,6 +13,13 @@ Allows someone to save a prediction with details -
 pragma solidity ^0.8.0;
 
 contract ForecastLogger {
+    // Adding owner variable:
+    address public owner;
+
+    constructor() {
+        owner = msg.sender;
+    }
+    
     // Prediction Struct stores one prediction record
     struct Prediction {
         string modelName;
