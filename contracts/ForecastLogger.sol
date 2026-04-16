@@ -16,10 +16,19 @@ contract ForecastLogger {
     // Adding owner variable:
     address public owner;
 
+    //constructor - runs once, when the contract is first deployed
     constructor() {
+        // whoever deploys this contract becomes the owner
         owner = msg.sender;
     }
-    
+
+    //modifier - rule that runs before the a function
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can call this function");
+        // _; means after this check passes, continue with the rest of the function.
+        _;
+    }
+
     // Prediction Struct stores one prediction record
     struct Prediction {
         string modelName;
@@ -47,7 +56,7 @@ contract ForecastLogger {
         string memory _modelName,
         uint256 _predictedValue,
         uint256 _confidence
-    ) public {
+    ) public onlyOwner {
         // convert string into bytes and counts the length - must be above 0 - cannot be empty
         require(bytes(_modelName).length > 0, "Model name cannot be empty");
         // input number for confidence must be between 0 and 100 & uint256 cannot be negative!
@@ -82,6 +91,29 @@ contract ForecastLogger {
     function getPredictionCount() public view returns (uint256) {
         return predictions.length;
     }
+
+    function getPrediction(uint256 _index) public view
+        returns (
+            string memory modelName,
+            uint256 predictedValue,
+            uint256 confidence,
+            uint256 timestamp,
+            address submittedBy
+        ) {
+            require(_index < predictions.length, "Prediction does not exist");
+
+            // gets prediction and stores it in a temporary variable p
+            Prediction memory p = predictions[_index];
+
+            return(
+                p.modelName,
+                p.predictedValue,
+                p.confidence,
+                p.timestamp,
+                p.submittedBy
+            );
+        }  
+        
 
     // read out the latest Prediction
     function getLatestPrediction() public view
