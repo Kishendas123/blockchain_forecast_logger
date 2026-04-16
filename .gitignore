@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# hardhat build output
+artifacts/
+cache/
+
+# environment files
+.env
+.env.*
+
+# typescript / generated files
+dist/
+typechain-types/
+
+# coverage
+coverage/
+
+# logs
+*.log
+
+# macOS
+.DS_Store
