@@ -114,7 +114,8 @@ def download_market_data(start="2020-01-01"):
         start=start,
         interval="1d",
         auto_adjust=False,
-        progress=False
+        progress=False,
+        threads=False
     )
 
     # Flatten MultiIndex columns
@@ -142,7 +143,6 @@ def download_market_data(start="2020-01-01"):
 
     df = data.rename(columns=rename_map)
 
-    # Keep only columns that actually exist
     desired_cols = [
         "BTC Open", "BTC High", "BTC Low", "BTC Close", "BTC Volume",
         "NASDAQ Close", "NASDAQ Volume",
@@ -152,20 +152,27 @@ def download_market_data(start="2020-01-01"):
     existing_cols = [col for col in desired_cols if col in df.columns]
     df = df[existing_cols].copy()
 
-    # Sort by date
     df = df.sort_index()
 
-    # BTC must exist
-    df = df[df["BTC Close"].notna()].copy()
+    # BTC is required
+    required_btc_cols = ["BTC Open", "BTC High", "BTC Low", "BTC Close", "BTC Volume"]
+    df = df.dropna(subset=[col for col in required_btc_cols if col in df.columns])
 
-    # Fill non-BTC columns where possible
-    fill_cols = [col for col in ["NASDAQ Close", "NASDAQ Volume", "Gold Close", "Gold Volume"] if col in df.columns]
-    if fill_cols:
-        df[fill_cols] = df[fill_cols].ffill().bfill()
+    # Forward-fill partial market columns
+    optional_cols = [col for col in ["NASDAQ Close", "NASDAQ Volume", "Gold Close", "Gold Volume"] if col in df.columns]
+    if optional_cols:
+        df[optional_cols] = df[optional_cols].ffill().bfill()
+
+    # Drop columns that are still entirely null
+    all_null_cols = [col for col in df.columns if df[col].isna().all()]
+    if all_null_cols:
+        print("Dropping all-null columns:", all_null_cols)
+        df = df.drop(columns=all_null_cols)
 
     print("downloaded df shape:", df.shape)
     print("downloaded df columns:", df.columns.tolist())
-    print(df.head())
+    print("downloaded df null counts:")
+    print(df.isna().sum())
 
     return df
 
@@ -181,10 +188,11 @@ def build_features(df):
 
     # Returns
     df_feat["BTC Return"] = df_feat["BTC Close"].pct_change()
-    df_feat["NASDAQ Return"] = df_feat["NASDAQ Close"].pct_change()
 
-    # Gold return only if Gold exists and is usable
-    if "Gold Close" in df_feat.columns and df_feat["Gold Close"].notna().sum() > 0:
+    if "NASDAQ Close" in df_feat.columns:
+        df_feat["NASDAQ Return"] = df_feat["NASDAQ Close"].pct_change()
+
+    if "Gold Close" in df_feat.columns:
         df_feat["Gold Return"] = df_feat["Gold Close"].pct_change()
     else:
         print("Gold data unavailable - skipping Gold Return feature.")
@@ -235,10 +243,9 @@ def build_features(df):
     df_feat["RSI_signal"] = ((df_feat["RSI"] > 70) | (df_feat["RSI"] < 30)).astype(int)
     df_feat["RSI_direction"] = (df_feat["RSI"] > 50).astype(int)
 
-    # Drop NaNs caused by rolling indicators
+    # Drop rows caused by rolling features
     df_feat.dropna(inplace=True)
 
-    # Columns to drop only if they exist
     drop_cols = [
         "NASDAQ Close",
         "Gold Close",
