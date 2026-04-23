@@ -117,6 +117,7 @@ def download_market_data(start="2020-01-01"):
         progress=False
     )
 
+    # Flatten MultiIndex columns
     data.columns = [f"{ticker} {field}" for field, ticker in data.columns]
 
     rename_map = {
@@ -141,18 +142,32 @@ def download_market_data(start="2020-01-01"):
 
     df = data.rename(columns=rename_map)
 
-    df = df[[
-        "BTC Close",
-        "NASDAQ Close",
-        "Gold Close",
-        "BTC Volume",
-        "NASDAQ Volume",
-        "Gold Volume"
-    ]].copy()
+    # Keep only columns that actually exist
+    desired_cols = [
+        "BTC Open", "BTC High", "BTC Low", "BTC Close", "BTC Volume",
+        "NASDAQ Close", "NASDAQ Volume",
+        "Gold Close", "Gold Volume"
+    ]
 
+    existing_cols = [col for col in desired_cols if col in df.columns]
+    df = df[existing_cols].copy()
+
+    # Sort by date
     df = df.sort_index()
-    return df
 
+    # BTC must exist
+    df = df[df["BTC Close"].notna()].copy()
+
+    # Fill non-BTC columns where possible
+    fill_cols = [col for col in ["NASDAQ Close", "NASDAQ Volume", "Gold Close", "Gold Volume"] if col in df.columns]
+    if fill_cols:
+        df[fill_cols] = df[fill_cols].ffill().bfill()
+
+    print("downloaded df shape:", df.shape)
+    print("downloaded df columns:", df.columns.tolist())
+    print(df.head())
+
+    return df
 
 # =========================================================
 # 3. Feature engineering for Random Forest
@@ -160,10 +175,19 @@ def download_market_data(start="2020-01-01"):
 def build_features(df):
     df_feat = df.copy()
 
+    print("build_features input shape:", df_feat.shape)
+    print("build_features input nulls:")
+    print(df_feat.isna().sum())
+
     # Returns
     df_feat["BTC Return"] = df_feat["BTC Close"].pct_change()
     df_feat["NASDAQ Return"] = df_feat["NASDAQ Close"].pct_change()
-    df_feat["Gold Return"] = df_feat["Gold Close"].pct_change()
+
+    # Gold return only if Gold exists and is usable
+    if "Gold Close" in df_feat.columns and df_feat["Gold Close"].notna().sum() > 0:
+        df_feat["Gold Return"] = df_feat["Gold Close"].pct_change()
+    else:
+        print("Gold data unavailable - skipping Gold Return feature.")
 
     # SMA
     df_feat["SMA_7"] = df_feat["BTC Close"].rolling(window=7).mean()
@@ -211,11 +235,11 @@ def build_features(df):
     df_feat["RSI_signal"] = ((df_feat["RSI"] > 70) | (df_feat["RSI"] < 30)).astype(int)
     df_feat["RSI_direction"] = (df_feat["RSI"] > 50).astype(int)
 
-    # Drop NaN from rolling features
+    # Drop NaNs caused by rolling indicators
     df_feat.dropna(inplace=True)
 
-    # Cleaner set
-    df_clean = df_feat.drop(columns=[
+    # Columns to drop only if they exist
+    drop_cols = [
         "NASDAQ Close",
         "Gold Close",
         "SMA_7",
@@ -227,14 +251,20 @@ def build_features(df):
         "Bollinger_Lower",
         "RSI",
         "Gold Volume"
-    ], errors="ignore").copy()
+    ]
+
+    existing_drop_cols = [col for col in drop_cols if col in df_feat.columns]
+    df_clean = df_feat.drop(columns=existing_drop_cols, errors="ignore").copy()
 
     # Target = next-day BTC close
     df_clean["Target"] = df_clean["BTC Close"].shift(-1)
     df_clean.dropna(inplace=True)
 
-    return df_clean
+    print("build_features output shape:", df_clean.shape)
+    print("build_features output nulls:")
+    print(df_clean.isna().sum())
 
+    return df_clean
 
 # =========================================================
 # 4. Random Forest block
@@ -259,23 +289,31 @@ def run_random_forest(df_clean):
 
     y_train_rf = y_rf.iloc[:train_size]
     y_test_rf = y_rf.iloc[train_size:]
+    
 
     param_grid = {
-        "n_estimators": [100, 200],
-        "max_depth": [5, 10, 15, None],
-        "min_samples_split": [2, 5],
-        "min_samples_leaf": [1, 2, 4]
+    "n_estimators": [100, 200],
+    "max_depth": [5, 10, 15, None],
+    "min_samples_split": [2, 5],
+    "min_samples_leaf": [1, 2, 4]
     }
 
+    print("df_rf shape:", df_rf.shape)
+    print("X_train_rf shape:", X_train_rf.shape)
+    print("y_train_rf shape:", y_train_rf.shape)
+
+    if len(X_train_rf) < 10:
+        raise ValueError(f"Not enough training samples for Random Forest: {len(X_train_rf)}")
+
     rf_model = RandomForestRegressor(random_state=42)
-    tscv = TimeSeriesSplit(n_splits=5)
+    tscv = TimeSeriesSplit(n_splits=3)
 
     grid_search = GridSearchCV(
         estimator=rf_model,
         param_grid=param_grid,
         cv=tscv,
         scoring="neg_mean_squared_error",
-        n_jobs=-1
+        n_jobs=1
     )
 
     grid_search.fit(X_train_rf, y_train_rf)

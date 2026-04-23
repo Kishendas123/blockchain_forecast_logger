@@ -1,14 +1,13 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import mplfinance as mpf
 
 from model_runner import get_latest_model_prediction
-from blockchain_logger import (
-    submit_prediction_to_blockchain,
-    get_latest_prediction,
-    get_prediction_count
-)
+# from blockchain_logger import (
+#     submit_prediction_to_blockchain,
+#     get_latest_prediction,
+#     get_prediction_count
+# )
 from bitcoin_forecast_models import download_market_data
 
 # ---------------------------------------------------------

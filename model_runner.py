@@ -8,7 +8,13 @@ from bitcoin_forecast_models import (
 
 # Train once on import for local demo
 df = download_market_data(start="2020-01-01")
+print("downloaded df shape:", df.shape)
+print("downloaded df columns:", df.columns.tolist())
+print(df.head())
+
 df_clean = build_features(df)
+print("df_clean shape:", df_clean.shape)
+print(df_clean.head())
 
 rf_output = run_random_forest(df_clean)
 lstm_output = run_lstm_price_only(df, time_steps=30)
