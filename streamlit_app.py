@@ -122,10 +122,15 @@ The app then shows:
 """)
 
     if st.button("Generate Prediction"):
-        with st.spinner("Running model and generating next-day forecast..."):
-            prediction = cached_prediction(model_choice)
+        try:
+            with st.spinner("Loading live data and generating forecast... this may take a while on first run."):
+                prediction = cached_prediction(model_choice)
 
-        st.session_state["latest_prediction"] = prediction
+            st.session_state["latest_prediction"] = prediction
+
+        except Exception as e:
+            st.error("Live market data could not be loaded right now. Please try again later.")
+            st.code(str(e))
 
     if "latest_prediction" in st.session_state:
         prediction = st.session_state["latest_prediction"]

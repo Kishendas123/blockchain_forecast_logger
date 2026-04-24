@@ -1,3 +1,5 @@
+import streamlit as st
+
 from bitcoin_forecast_models import (
     download_market_data,
     build_features,
@@ -6,20 +8,24 @@ from bitcoin_forecast_models import (
     get_model_prediction
 )
 
-df = download_market_data(start="2020-01-01")
-print("downloaded df shape:", df.shape)
-print("downloaded df columns:", df.columns.tolist())
 
-df_clean = build_features(df)
-print("df_clean shape:", df_clean.shape)
+@st.cache_resource
+def load_models():
+    df = download_market_data(start="2020-01-01")
+    df_clean = build_features(df)
 
-if df_clean.empty:
-    raise ValueError("df_clean is empty after feature engineering. Check downloaded market data availability.")
+    if df_clean.empty:
+        raise ValueError("No usable training data after feature engineering.")
 
-rf_output = run_random_forest(df_clean)
-lstm_output = run_lstm_price_only(df, time_steps=30)
+    rf_output = run_random_forest(df_clean)
+    lstm_output = run_lstm_price_only(df, time_steps=30)
+
+    return df, df_clean, rf_output, lstm_output
+
 
 def get_latest_model_prediction(model_choice: str):
+    df, df_clean, rf_output, lstm_output = load_models()
+
     if model_choice == "Random Forest":
         return get_model_prediction(
             model_choice="Random Forest",
