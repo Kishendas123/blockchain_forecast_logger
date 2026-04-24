@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from model_runner import get_latest_model_prediction
+from model_runner import get_latest_model_prediction, retrain_and_save_models
+
 # from blockchain_logger import (
 #     submit_prediction_to_blockchain,
 #     get_latest_prediction,
@@ -67,6 +68,18 @@ history_window = st.sidebar.slider(
     value=90,
     step=10
 )
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("Model Maintenance")
+
+if st.sidebar.button("Retrain Models"):
+    try:
+        with st.spinner("Retraining models with latest live data... this may take a few minutes."):
+            message = retrain_and_save_models()
+        st.sidebar.success(message)
+    except Exception as e:
+        st.sidebar.error("Retraining failed.")
+        st.sidebar.code(str(e))
 
 
 # ---------------------------------------------------------
