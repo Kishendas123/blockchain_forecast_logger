@@ -150,8 +150,8 @@ The app then shows:
 
         st.subheader("Latest Model Forecast")
 
-        latest_btc_price = df["BTC Close"].iloc[-1]
-        forecast_date = df.index[-1] + pd.Timedelta(days=1)
+        latest_btc_price = prediction.get("latest_price", df["BTC Close"].iloc[-1])
+        forecast_date = prediction.get("latest_date", df.index[-1]) + pd.Timedelta(days=1)
 
         col0, col1, col2, col3 = st.columns(4)
 

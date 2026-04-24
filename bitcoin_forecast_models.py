@@ -566,6 +566,60 @@ def predict_with_lstm(lstm_model, scaler_lstm, df, time_steps=30, residual_std=N
         upper_pi=upper_pi
     )
 
+
+def predict_lstm_with_live_data(lstm_model, scaler_lstm, time_steps=30, residual_std=None):
+    btc = yf.download(
+        "BTC-USD",
+        start="2020-01-01",
+        interval="1d",
+        auto_adjust=False,
+        progress=False,
+        threads=False
+    )
+
+    if btc.empty:
+        raise ValueError("Live BTC data download failed.")
+
+    if isinstance(btc.columns, pd.MultiIndex):
+        btc.columns = btc.columns.get_level_values(0)
+
+    df_live = btc[["Close"]].copy()
+    df_live.rename(columns={"Close": "BTC Close"}, inplace=True)
+    df_live.dropna(inplace=True)
+
+    if len(df_live) < time_steps:
+        raise ValueError(f"Not enough live BTC data. Need at least {time_steps} rows.")
+
+    latest_prices = df_live[["BTC Close"]].values
+    latest_price = latest_prices[-1][0]
+
+    latest_scaled = scaler_lstm.transform(latest_prices)
+    X_latest = latest_scaled[-time_steps:].reshape(1, time_steps, 1)
+
+    predicted_scaled = lstm_model.predict(X_latest, verbose=0)
+
+    if np.isnan(predicted_scaled).any():
+        raise ValueError("LSTM predicted NaN for live BTC input.")
+
+    predicted_price = scaler_lstm.inverse_transform(predicted_scaled)[0][0]
+
+    lower_pi, upper_pi = None, None
+    if residual_std is not None and not np.isnan(residual_std):
+        lower_pi = predicted_price - 1.96 * residual_std
+        upper_pi = predicted_price + 1.96 * residual_std
+
+    output = format_prediction_output(
+        model_name="LSTM",
+        predicted_price=predicted_price,
+        last_price=latest_price,
+        lower_pi=lower_pi,
+        upper_pi=upper_pi
+    )
+
+    output["latest_price"] = float(latest_price)
+    output["latest_date"] = df_live.index[-1]
+
+    return output
 # =========================================================
 # 6. ARIMA block (rolling forecast)
 # =========================================================

@@ -8,7 +8,8 @@ from bitcoin_forecast_models import (
     build_features,
     run_random_forest,
     run_lstm_price_only,
-    get_model_prediction
+    get_model_prediction,
+    predict_lstm_with_live_data
 )
 
 MODEL_DIR = Path("models")
@@ -39,14 +40,12 @@ def get_latest_model_prediction(model_choice: str):
         )
 
     elif model_choice == "LSTM":
-        return get_model_prediction(
-            model_choice="LSTM",
-            df=df,
+        return predict_lstm_with_live_data(
             lstm_model=lstm_model,
             scaler_lstm=lstm_scaler,
             time_steps=30,
-            lstm_residual_std=lstm_residual_std
-        )
+            residual_std=lstm_residual_std
+    )
 
     elif model_choice == "ARIMA":
         return get_model_prediction(
