@@ -568,6 +568,8 @@ def predict_with_lstm(lstm_model, scaler_lstm, df, time_steps=30, residual_std=N
 
 
 def predict_lstm_with_live_data(lstm_model, scaler_lstm, time_steps=30, residual_std=None):
+    print("USING LIVE LSTM INFERENCE")
+
     btc = yf.download(
         "BTC-USD",
         start="2020-01-01",
@@ -591,7 +593,7 @@ def predict_lstm_with_live_data(lstm_model, scaler_lstm, time_steps=30, residual
         raise ValueError(f"Not enough live BTC data. Need at least {time_steps} rows.")
 
     latest_prices = df_live[["BTC Close"]].values
-    latest_price = latest_prices[-1][0]
+    latest_price = float(latest_prices[-1][0])
 
     latest_scaled = scaler_lstm.transform(latest_prices)
     X_latest = latest_scaled[-time_steps:].reshape(1, time_steps, 1)
@@ -601,7 +603,24 @@ def predict_lstm_with_live_data(lstm_model, scaler_lstm, time_steps=30, residual
     if np.isnan(predicted_scaled).any():
         raise ValueError("LSTM predicted NaN for live BTC input.")
 
-    predicted_price = scaler_lstm.inverse_transform(predicted_scaled)[0][0]
+    raw_predicted_price = float(scaler_lstm.inverse_transform(predicted_scaled)[0][0])
+
+    # -------------------------------
+    # Sanity guard for unstable LSTM
+    # -------------------------------
+    recent_return = df_live["BTC Close"].pct_change().tail(7).mean()
+    baseline_predicted_price = latest_price * (1 + recent_return)
+
+    # If LSTM prediction is more than 20% away from latest price,
+    # treat it as unstable and use recent-return baseline.
+    if abs(raw_predicted_price - latest_price) / latest_price > 0.20:
+        print(
+            f"LSTM raw prediction unstable: {raw_predicted_price:.2f}. "
+            f"Using baseline prediction: {baseline_predicted_price:.2f}"
+        )
+        predicted_price = baseline_predicted_price
+    else:
+        predicted_price = raw_predicted_price
 
     lower_pi, upper_pi = None, None
     if residual_std is not None and not np.isnan(residual_std):
@@ -618,6 +637,7 @@ def predict_lstm_with_live_data(lstm_model, scaler_lstm, time_steps=30, residual
 
     output["latest_price"] = float(latest_price)
     output["latest_date"] = df_live.index[-1]
+    output["raw_lstm_prediction"] = float(raw_predicted_price)
 
     return output
 # =========================================================
