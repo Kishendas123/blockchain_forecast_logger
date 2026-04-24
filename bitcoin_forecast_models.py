@@ -174,6 +174,14 @@ def download_market_data(start="2020-01-01"):
     print("downloaded df null counts:")
     print(df.isna().sum())
 
+    if "BTC Close" not in df.columns:
+        raise ValueError(
+        f"BTC Close is missing after download. Available columns: {df.columns.tolist()}"
+    )
+
+    if df["BTC Close"].dropna().empty:
+        raise ValueError("BTC Close downloaded but contains no usable values.")
+
     return df
 
 # =========================================================
@@ -181,6 +189,11 @@ def download_market_data(start="2020-01-01"):
 # =========================================================
 def build_features(df):
     df_feat = df.copy()
+
+    if "BTC Close" not in df_feat.columns:
+        raise ValueError(
+        f"BTC Close is missing before feature engineering. Available columns: {df_feat.columns.tolist()}"
+    )
 
     print("build_features input shape:", df_feat.shape)
     print("build_features input nulls:")
